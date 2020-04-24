@@ -242,7 +242,14 @@ plot(
 	label = ["Up-regulation" "Spot" "Down-regulation"],
 	xlabel = "Hour",
 	ylabel = "EUR/MWh",
+	legend = :outertopright,
+	size = (1200, 300),
+	xticks = (
+	1:24:288,
+	["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]),
+	dpi = 300,
 )
+savefig("insight.png")
 
 # Yearly-hourly marginal profile from 2016 data
 marginal_profile_yearly = @linq df_market16 |>
@@ -259,6 +266,8 @@ plot(
 	label = [L"\pi^{+}" L"\pi^{-}"],
 	xlabel = "Hour",
 	ylabel = "EUR/MWh",
+	xticks = 1:24,
+	ylims = (0, 5)
 )
 
 # Hourly profile per month from 2016 market data
@@ -272,12 +281,19 @@ marginal_profile = @linq df_market16 |>
 )
 # Plot monthly hourly marginal price profile (monthly average per hour)
 plot(
-	#DateTime.(Date.(2016, mhourly_profile.Month), Time.(mhourly_profile.Hours.-1)),
+	1:288,
 	[marginal_profile.π_plus_mean, marginal_profile.π_minus_mean],
 	label = [L"\pi^{+}" L"\pi^{-}"],
-	xlabel = "Hour",
+	xlabel = "Month",
 	ylabel = "EUR/MWh",
+	minorticks = 6,
+	xticks = (
+	1:24:288,
+	["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]),
+	size = (750, 300),
+	dpi = 1000,
 )
+savefig("marginal_profile.png")
 
 #=
 DataFrames that hold the hours of 2016 where the system was in balance, when there was a
@@ -319,17 +335,26 @@ df_insight16 = by(
 	Both = :Both => sum
 )
 plot(
-	#DateTime.(Date.(2016, df_insight16.Month), Time.(df_insight16.Hours.-1)),
+	1:288,
 	[
 	df_insight16.Down,
 	df_insight16.Balance,
 	df_insight16.Up,
 	df_insight16.Both
 	],
+	ylims = (-20, 1000),
+	legend = :topright,
 	label = ["Down-regulation" "Balance" "Up-regulation" "Both"],
-	xlabel = "Hour",
+	xlabel = "Month",
 	ylabel = "Occurences",
+	xticks = (
+	1:24:288,
+	["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]),
+	size = (1000, 300),
+	dpi = 1000,
+	linewidth = 2,
 )
+savefig("occurences.png")
 
 # Example of January and November
 df_january16 = filter(row -> row[:Month] == 1, df_insight16)
@@ -341,6 +366,7 @@ plot(
 	df_january16.Up,
 	df_january16.Both
 	],
+	xaxis = 1:24,
 	label = ["Down-regulation" "Balance" "Up-regulation" "Both"],
 	xlabel = "Hour",
 	ylabel = "Occurences",
@@ -352,6 +378,7 @@ plot(
 	df_november16.Up,
 	df_november16.Both
 	],
+	xaxis = 1:24,
 	label = ["Down-regulation" "Balance" "Up-regulation" "Both"],
 	xlabel = "Hour",
 	ylabel = "Occurences"
@@ -378,7 +405,10 @@ insertcols!(
 	1,
 	:Datetime => DateTime.(Date.(2016, df_insight16.Month), Time.(df_insight16.Hours.-1))
 )
-histogram(state, xticks=(1:3, ["Down-regulation" "Up-regulation" "Balance"]))
+histogram(
+	state,
+	xticks = (1:5, ["Down-regulation" "Up-regulation" "Balance"])
+)
 
 # Obtain indexes of df_forecast with latest possible date (11am or at least 12 day before)
 idx_match = zeros(Int64, length(dt_17))
@@ -542,8 +572,25 @@ prob_bid = zeros(length(dt_17))
 π_minus = create_bid(marginal_profile.π_minus_mean, month_days)
 α = π_plus./(π_plus + π_minus)
 
-# Example plot for first hour
-plot([df_forecast[13, col] for col in 6:24], 0.05:0.05:0.95, label="Quantiles")
+# Example plot for 4 am of 2/2/2017
+plot(
+	[df_forecast[2449, col]/1000 for col in 6:24],
+	0.05:0.05:0.95,
+	label="Forecast",
+	legend = :topleft,
+	xlabel = "Forecasted power [MW]",
+	ylabel = "Probability",
+	ylims = (0, 1),
+	xlims = (df_forecast[2449, 6]/1000, (df_forecast[2449, 24]/1000)+1),
+	formatter = :auto,
+	markershape = :auto
+)
+plot!(
+	[df_forecast[2449, 6]/1000, df_forecast[2449, 13]/1000, df_forecast[2449, 13]/1000],
+	[0.4, 0.4, 0],
+	label = LaTeXString("Optimal quantile\\alpha")
+)
+savefig("optimal_quantile.png")
 
 # Find bid at optimal quantile
 for i in 1:length(dt_17)
@@ -594,6 +641,7 @@ revenue_det_acc = accumulate(+, revenue_det)
 revenue_det2_acc = accumulate(+, revenue_det2)
 revenue_prob_acc = accumulate(+, revenue_prob)
 
+γ = Dict("γ_base" => γ_base, "γ_det" => γ_det, "γ_det2" => γ_det2, "γ_prob" => γ_prob)
 revenue = [revenue_optimal, revenue_base, revenue_det, revenue_det2, revenue_prob]
 revenue_acc = [revenue_optimal_acc, revenue_base_acc, revenue_det_acc, revenue_det2_acc, revenue_prob_acc]
 
@@ -603,5 +651,7 @@ plot(
 	labels = ["Optimal" "Base" "Deterministic" "Deterministic II" "Probabilistic"],
 	legend = :topleft,
 	xlabel = "Date",
-	ylabel = "EUR"
+	ylabel = "EUR",
+	yformatter = :auto,
 )
+savefig("revenues.png")
